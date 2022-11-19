@@ -43,18 +43,29 @@ const run = async() => {
         // get remaining slots whice are not booking 
         const remainingSlots = option.slots.filter(slot => !bookedSlots.includes(slot) )
         option.slots = remainingSlots ;
-        console.log(option.name,optionBooked, bookedSlots,remainingSlots.length)
-
-
-        })
-        
-      ;
+     
+        });
         res.send(options);
     })
     
+
     // insert bookings data in db
     app.post('/bookings', async(req, res)=> {
         const booking = req.body ;
+        // limit booking , if a user booking a service , he cannot able to again booking same treatment, same date 
+        console.log(booking)
+        const query = {
+            appointment_date: booking.appointment_date,
+            appointmentName : booking.appointmentName ,
+       
+        }
+        const alreadyBooked = await bookingsCollection.find(query).toArray();
+        // // only length means that length = 1 or equal
+         console.log(alreadyBooked)
+        if(alreadyBooked.length){
+        const message = `You already have  booking on  ${booking.appointment_date} `
+        return res.send({acknowledged: false , message})
+        }
         const result = await bookingsCollection.insertOne(booking)
         res.send(result)
     })
@@ -65,6 +76,7 @@ const run = async() => {
     }
 }
 run().catch(console.dir)
+
 
 
 
