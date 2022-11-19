@@ -3,7 +3,7 @@ const app  = express()
 const cors = require ('cors')
 const port = process.env.PORT || 5000 ;
 const { MongoClient, ServerApiVersion } = require('mongodb');
-
+require('dotenv').config()
 
 // midleware
 app.use(cors())
@@ -15,20 +15,57 @@ app.get('/', (req, res) => {
 })
 
 // mongodb 
-/*
-username:DB_USER
-pass:DB_PASSWORD
 
-*/
-
-const uri = `mongodb+srv://${DB_USER}:${DB_PASSWORD}@cluster0.rhjlmgh.mongodb.net/?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.rhjlmgh.mongodb.net/?retryWrites=true&w=majority`;
 console.log(uri)
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
-client.connect(err => {
-  const collection = client.db("test").collection("devices");
-  // perform actions on the collection object
-  client.close();
-});
+
+const run = async() => {
+    try {
+     // all option collection 
+     const appointmentOptionCollection = client.db('doctors_portal').collection('appointment_option') 
+     const bookingsCollection = client.db('doctors_portal').collection('bookings')
+     
+     // get all appointment option from db 
+    app.get('/appointment_option', async(req,res) =>  {
+        // find date using date format whice req from client 
+        const date = req.query.date ;
+        const query = {}
+        const options = await appointmentOptionCollection.find(query).toArray()
+
+        // find all booking by a specific date and all treatement 
+        const bookingQuery = {appointment_date:date}
+        const alreadyBooked = await bookingsCollection.find(bookingQuery).toArray()
+        options.forEach(option => {
+        const  optionBooked = alreadyBooked.filter(book => book.appointmentName === option.name)
+        const bookedSlots = optionBooked.map(book =>  book.slots)
+
+        // get remaining slots whice are not booking 
+        const remainingSlots = option.slots.filter(slot => !bookedSlots.includes(slot) )
+        option.slots = remainingSlots ;
+        console.log(option.name,optionBooked, bookedSlots,remainingSlots.length)
+
+
+        })
+        
+      ;
+        res.send(options);
+    })
+    
+    // insert bookings data in db
+    app.post('/bookings', async(req, res)=> {
+        const booking = req.body ;
+        const result = await bookingsCollection.insertOne(booking)
+        res.send(result)
+    })
+
+    }
+    finally {
+
+    }
+}
+run().catch(console.dir)
+
 
 
 // 
