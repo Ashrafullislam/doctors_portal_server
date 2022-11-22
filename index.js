@@ -2,10 +2,11 @@ const express = require ('express')
 const app  = express()
 const cors = require ('cors')
 const port = process.env.PORT || 5000 ;
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 // json webtoken 
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+const { query } = require('express');
 
 // midleware
 app.use(cors())
@@ -21,7 +22,7 @@ app.get('/', (req, res) => {
 
 // mongodb part 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.rhjlmgh.mongodb.net/?retryWrites=true&w=majority`;
-console.log(uri)
+// console.log(uri)
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 // verify user token 
@@ -33,6 +34,7 @@ function verifyJWT(req,res,next) {
     }
     const token = authHeader.split(' ')[1]
     // jwt verify  call for verify clien req token 
+    console.log('token',token)
     jwt.verify(token, process.env.ACCESS_TOKEN , function(err , decoded) {
         // if an error occurd , then send the 403 status 
         if(err) {
@@ -83,13 +85,11 @@ const run = async() => {
         const email = req.query.email ;
         // find decoded email to match with email 
           const decodedEmail = req.decoded.email ;
-          console.log(decodedEmail,'decoded email ')
         // // if decooded email and email are not match 
-        // if(decodedEmail !== email){
-        //     return res.status(403).send({message:'forbidden access '})
-        // }
+        if(decodedEmail !== email){
+            return res.status(403).send({message:'forbidden access '})
+        }
         // console.log('token check',req.headers.authorization)
-        console.log(email)
         const query = {email:email};
         const booking = await bookingsCollection.find(query).toArray()
         res.send(booking)
@@ -103,10 +103,11 @@ const run = async() => {
         const query = {
             appointment_date: booking.appointment_date,
             appointmentName : booking.appointmentName ,
+            email:booking.email,
+
         }
         const alreadyBooked = await bookingsCollection.find(query).toArray();
         // // only length means that length = 1 or equal
-         console.log(alreadyBooked)
         if(alreadyBooked.length){
         const message = `You already have  booking on  ${booking.appointment_date} `
         return res.send({acknowledged: false , message})
@@ -125,12 +126,12 @@ const run = async() => {
             const token = jwt.sign({email},process.env.ACCESS_TOKEN , {expiresIn:'1h'} )
             return res.send({accessToken:token})
         }
-        console.log(user)
-        res.status(403  ).send({accessToken:''})
+        // console.log(user)
+        res.status(403).send({accessToken:''})
     })
     
 
-    // post data in server to db 
+    // post data in server to db create user 
     app.post('/users', async(req,res) => {
         const query = req.body ;
         const userResult = await usersCollection.insertOne(query);
@@ -138,7 +139,45 @@ const run = async() => {
     })
     
     //  get data from data base 
-    
+    app.get('/users', async(req,res) => {
+        const  query = {};
+        const users = await usersCollection.find(query).toArray()
+        res.send(users)
+    })
+
+    // verify admin role and give access go to dashboard > alluser
+    app.get('/users/admin/:email', async(req,res) => {
+        const email = req.params.email;
+        const query = {email};
+        const user = await usersCollection.findOne(query);
+        res.send({isAdmin: user?.role === "admin"});
+    }) 
+
+    // make a person admin useing put method // source node-mongo-crud-update-doc
+    app.put('/users/admin/:id',verifyJWT, async(req,res)=> {
+        // admin role create and verify with token jwt 
+        const decodedEmail = req.decoded.email;
+        const query = {email:decodedEmail};
+        console.log(query,'query ')
+        //  who is try to action make a person admin..  verify him
+        const user = await usersCollection.findOne(query);
+        if(user?.role !== 'admin'){
+            return res.status(403).send({message:'forbidden aceess'});
+        }
+        // first create simple 
+        const id = req.params.id ;
+        const filter = {_id:ObjectId(id)};
+        const options = {upsert:true};
+        // whice doc need to update 
+        const updateDoc = {
+            $set:{
+                role:'admin'
+            }
+        }
+        const result = await usersCollection.updateOne(filter,updateDoc,options)
+        res.send(result)
+    })
+
 
 
     }
