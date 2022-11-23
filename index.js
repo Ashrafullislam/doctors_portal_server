@@ -57,6 +57,7 @@ const run = async() => {
      const appointmentOptionCollection = client.db('doctors_portal').collection('appointment_option') 
      const bookingsCollection = client.db('doctors_portal').collection('bookings')
      const usersCollection = client.db('doctors_portal').collection('users')
+     const doctorsCollection = client.db('doctors_portal').collection('doctor')
      
      // get all appointment option from db 
     app.get('/appointment_option', async(req,res) =>  {
@@ -79,7 +80,21 @@ const run = async() => {
         });
         res.send(options);
     })
+
+    // get only  apointment optione name with id using projects docs:mongodb
+    app.get('/doctorSpecialty', async(req,res) =>  {
+        const query = {}
+        const result = await appointmentOptionCollection.find(query).project({name:1}).toArray();
+        res.send(result)
+    }) 
     
+    // save doctor information after upload info with image in database by post method
+    app.post('/doctor', async(req,res) => {
+        const doctor  = req.body ;
+        const result = await doctorsCollection.insertOne(doctor);
+        res.send(result)
+    })
+
     // get booking data by specific user email  .... call the verifyJWT function 
     app.get('/bookings',verifyJWT, async(req,res) => {
         const email = req.query.email ;
@@ -177,6 +192,7 @@ const run = async() => {
         const result = await usersCollection.updateOne(filter,updateDoc,options)
         res.send(result)
     })
+    
 
 
 
